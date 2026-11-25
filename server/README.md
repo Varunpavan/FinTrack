@@ -24,7 +24,7 @@ High-performance, async backend for **AI Personal Finance Tracker** built with *
 ## 📁 Directory Structure
 
 ```text
-server-fastapi/
+server/
 ├── app/
 │   ├── core/
 │   │   ├── config.py         # App settings & environment variables
@@ -66,7 +66,7 @@ createdb finance_tracker
 
 ### 2. Activate Virtual Environment & Install Dependencies
 ```bash
-cd server-fastapi
+cd server
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt

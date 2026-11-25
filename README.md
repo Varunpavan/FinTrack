@@ -17,7 +17,7 @@ Finance-Tracker/
 │   ├── vercel.json             # Vercel SPA routing configuration
 │   └── package.json
 │
-├── server-fastapi/             # Production FastAPI + PostgreSQL Async Backend
+├── server/             # Production FastAPI + PostgreSQL Async Backend
 │   ├── app/
 │   │   ├── api/                # API routes (auth, transactions, budgets, dashboard, ai, reports)
 │   │   ├── core/               # App configuration, security, TTL caching, database engine
@@ -82,11 +82,11 @@ Finance-Tracker/
 - **Python**: v3.11+
 - **PostgreSQL**: Local PostgreSQL or a free instance on [Neon](https://neon.tech)
 
-### 2. Backend Setup (`server-fastapi`)
+### 2. Backend Setup (`server`)
 
 ```bash
 # Navigate to the backend directory
-cd server-fastapi
+cd server
 
 # Create and activate Python virtual environment
 python3 -m venv venv
@@ -99,7 +99,7 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Edit `server-fastapi/.env` with your values:
+Edit `server/.env` with your values:
 ```env
 PORT=5055
 ENVIRONMENT=development
@@ -149,7 +149,7 @@ You can deploy the FastAPI backend to Render using either the **1-Click Blueprin
 2. Connect your GitHub repository.
 3. Configure the settings:
    - **Name**: `finance-tracker-api`
-   - **Root Directory**: `server-fastapi`
+   - **Root Directory**: `server`
    - **Runtime**: `Python 3`
    - **Build Command**: `pip install -r requirements.txt`
    - **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
