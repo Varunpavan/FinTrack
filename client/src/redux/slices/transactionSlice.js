@@ -74,7 +74,8 @@ let transactionSlice = createSlice({
       .addCase(saveTransaction.fulfilled, (state, action) => {
         state.loading = false
 
-        let existingIndex = state.transactions.findIndex((t) => t._id === action.payload._id)
+        let actionId = action.payload?._id || action.payload?.id
+        let existingIndex = state.transactions.findIndex((t) => (t._id || t.id) === actionId)
         if (existingIndex === -1) {
           state.transactions.unshift(action.payload)
         } else {
@@ -87,7 +88,7 @@ let transactionSlice = createSlice({
       })
 
       .addCase(removeTransactionById.fulfilled, (state, action) => {
-        state.transactions = state.transactions.filter((t) => t._id !== action.payload)
+        state.transactions = state.transactions.filter((t) => (t._id || t.id) !== action.payload)
       })
   }
 })

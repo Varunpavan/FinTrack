@@ -141,7 +141,7 @@ function Dashboard() {
               <div className="mt-4 divide-y divide-hairsoft">
                 {summary.recentTransactions && summary.recentTransactions.length > 0 ? (
                   summary.recentTransactions.map((item) => (
-                    <div key={item._id} className="flex items-center justify-between py-3">
+                    <div key={item._id || item.id} className="flex items-center justify-between py-3">
                       <div>
                         <p className="text-sm text-bone">{item.title}</p>
                         <p className="text-xs text-muted mt-0.5">

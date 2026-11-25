@@ -7,53 +7,90 @@ import { categories, formatCurrency } from '../utils/format'
 let inputClass =
   'w-full bg-surface border border-hairline rounded-md px-3 py-2 text-sm text-bone focus:outline-none focus:border-brass transition-colors'
 
+function generateRowId() {
+  return `cat_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+}
+
 function Budget() {
   let dispatch = useDispatch()
   let budget = useSelector((state) => state.budget)
 
-  const [monthlyBudget, setMonthlyBudget] = useState(0)
+  const [monthlyBudget, setMonthlyBudget] = useState('')
   const [categoryBudgets, setCategoryBudgets] = useState([])
   const [summary, setSummary] = useState(null)
   const [message, setMessage] = useState('')
+  const [initialLoaded, setInitialLoaded] = useState(false)
 
+  // Fetch initial budget and summary data on mount
   useEffect(() => {
-    let fetchData = async () => {
-      dispatch(fetchBudget())
+    let isMounted = true
 
+    let loadData = async () => {
       try {
-        let res = await getDashboardSummary()
-        setSummary(res.data.data)
+        let [budgetResult, dashRes] = await Promise.all([
+          dispatch(fetchBudget()).unwrap(),
+          getDashboardSummary().catch(() => null)
+        ])
+        if (isMounted) {
+          setMonthlyBudget(budgetResult.monthlyBudget ?? 0)
+          let initialCats = (budgetResult.categoryBudgets || []).map((c) => ({
+            id: generateRowId(),
+            category: c.category,
+            limit: c.limit
+          }))
+          setCategoryBudgets(initialCats)
+          if (dashRes && dashRes.data && dashRes.data.data) {
+            setSummary(dashRes.data.data)
+          }
+          setInitialLoaded(true)
+        }
       } catch (err) {
-        console.log(err)
+        if (isMounted) {
+          setInitialLoaded(true)
+        }
       }
     }
 
-    fetchData()
+    loadData()
+
+    return () => {
+      isMounted = false
+    }
   }, [dispatch])
 
-  // Copy budget from store into local form state once loaded
-  useEffect(() => {
-    setMonthlyBudget(budget.monthlyBudget)
-    setCategoryBudgets(budget.categories)
-  }, [budget.monthlyBudget, budget.categories])
-
   let handleAddCategoryClick = () => {
-    setCategoryBudgets([...categoryBudgets, { category: 'Food', limit: 0 }])
+    let used = new Set(categoryBudgets.map((item) => item.category))
+    let nextCategory = categories.find((cat) => !used.has(cat)) || categories[0]
+    setCategoryBudgets((prev) => [
+      ...prev,
+      { id: generateRowId(), category: nextCategory, limit: 0 }
+    ])
   }
 
-  let updateCategory = (index, field, value) => {
-    setCategoryBudgets(
-      categoryBudgets.map((item, i) => {
-        if (i === index) {
-          return { ...item, [field]: field === 'limit' ? Number(value) : value }
+  let handleRemoveCategoryClick = (idToRemove) => {
+    setCategoryBudgets((prev) => prev.filter((item) => item.id !== idToRemove))
+  }
+
+  let handleCategoryChange = (idToUpdate, nextCategory) => {
+    setCategoryBudgets((prev) =>
+      prev.map((item) => {
+        if (item.id === idToUpdate) {
+          return { ...item, category: nextCategory }
         }
         return item
       })
     )
   }
 
-  let removeCategory = (index) => {
-    setCategoryBudgets(categoryBudgets.filter((_, i) => i !== index))
+  let handleLimitChange = (idToUpdate, nextValue) => {
+    setCategoryBudgets((prev) =>
+      prev.map((item) => {
+        if (item.id === idToUpdate) {
+          return { ...item, limit: nextValue === '' ? '' : Number(nextValue) }
+        }
+        return item
+      })
+    )
   }
 
   let handleMonthlyBudgetChange = (event) => {
@@ -64,8 +101,19 @@ function Budget() {
     event.preventDefault()
     setMessage('')
 
+    let sanitizedCategories = categoryBudgets.map((item) => ({
+      category: item.category,
+      limit: Number(item.limit) || 0
+    }))
+
     try {
-      await dispatch(saveBudget({ monthlyBudget: Number(monthlyBudget), categoryBudgets })).unwrap()
+      await dispatch(
+        saveBudget({
+          monthlyBudget: Number(monthlyBudget) || 0,
+          categoryBudgets: sanitizedCategories
+        })
+      ).unwrap()
+
       let res = await getDashboardSummary()
       setSummary(res.data.data)
       setMessage('Budget saved successfully.')
@@ -76,10 +124,11 @@ function Budget() {
   }
 
   let totalExpense = summary?.totalExpense || 0
-  let remaining = Number(monthlyBudget || 0) - totalExpense
+  let numericMonthlyBudget = Number(monthlyBudget) || 0
+  let remaining = numericMonthlyBudget - totalExpense
   let usedPercent = 0
-  if (monthlyBudget > 0) {
-    usedPercent = Math.min(100, Math.round((totalExpense / monthlyBudget) * 100))
+  if (numericMonthlyBudget > 0) {
+    usedPercent = Math.min(100, Math.round((totalExpense / numericMonthlyBudget) * 100))
   }
 
   return (
@@ -102,50 +151,63 @@ function Budget() {
                 min="0"
                 value={monthlyBudget}
                 onChange={handleMonthlyBudgetChange}
+                placeholder="Enter monthly budget (₹)"
                 className={inputClass}
               />
             </div>
 
             <div className="flex items-center justify-between">
               <p className="eyebrow">Category Limits</p>
-              <button type="button" onClick={handleAddCategoryClick} className="text-xs text-brass hover:text-brass-bright transition-colors">
+              <button
+                type="button"
+                onClick={handleAddCategoryClick}
+                className="text-xs text-brass hover:text-brass-bright transition-colors"
+              >
                 + Add Category
               </button>
             </div>
 
             <div className="space-y-4">
-              {categoryBudgets.map((item, index) => {
+              {categoryBudgets.map((item) => {
                 let spent = summary?.categoryBreakdown?.find((entry) => entry.category === item.category)?.amount || 0
-                let percent = item.limit ? Math.min(100, Math.round((spent / item.limit) * 100)) : 0
+                let itemLimitNum = Number(item.limit) || 0
+                let percent = itemLimitNum ? Math.min(100, Math.round((spent / itemLimitNum) * 100)) : 0
 
-                let handleCategorySelectChange = (e) => {
-                  updateCategory(index, 'category', e.target.value)
+                let onCategorySelect = (e) => {
+                  handleCategoryChange(item.id, e.target.value)
                 }
 
-                let handleLimitInputChange = (e) => {
-                  updateCategory(index, 'limit', e.target.value)
+                let onLimitInput = (e) => {
+                  handleLimitChange(item.id, e.target.value)
                 }
 
-                let handleRemoveClick = () => {
-                  removeCategory(index)
+                let onRemove = () => {
+                  handleRemoveCategoryClick(item.id)
                 }
 
                 return (
-                  <div key={`${item.category}-${index}`} className="border-b border-hairsoft pb-4 last:border-0 last:pb-0">
+                  <div key={item.id} className="border-b border-hairsoft pb-4 last:border-0 last:pb-0">
                     <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-                      <select value={item.category} onChange={handleCategorySelectChange} className={inputClass}>
-                        {categories.map((category) => (
-                          <option key={category}>{category}</option>
+                      <select value={item.category} onChange={onCategorySelect} className={inputClass}>
+                        {categories.map((cat) => (
+                          <option key={cat} value={cat}>
+                            {cat}
+                          </option>
                         ))}
                       </select>
                       <input
                         type="number"
                         min="0"
                         value={item.limit}
-                        onChange={handleLimitInputChange}
+                        onChange={onLimitInput}
+                        placeholder="Limit (₹)"
                         className={inputClass}
                       />
-                      <button type="button" onClick={handleRemoveClick} className="text-xs text-muted hover:text-wine px-2 transition-colors">
+                      <button
+                        type="button"
+                        onClick={onRemove}
+                        className="text-xs text-muted hover:text-wine px-2 transition-colors"
+                      >
                         Remove
                       </button>
                     </div>
@@ -165,9 +227,19 @@ function Budget() {
                   </div>
                 )
               })}
+
+              {initialLoaded && categoryBudgets.length === 0 && (
+                <p className="text-xs text-muted py-2">
+                  No category limits set. Click <span className="text-bone font-medium">+ Add Category</span> above to set caps on specific spending categories.
+                </p>
+              )}
             </div>
 
-            <button disabled={budget.loading} className="rounded-md bg-brass px-5 py-2.5 font-semibold text-ink hover:bg-brass-bright disabled:opacity-50 transition-colors">
+            <button
+              type="submit"
+              disabled={budget.loading}
+              className="rounded-md bg-brass px-5 py-2.5 font-semibold text-ink hover:bg-brass-bright disabled:opacity-50 transition-colors"
+            >
               {budget.loading ? 'Saving...' : 'Save Budget'}
             </button>
           </form>

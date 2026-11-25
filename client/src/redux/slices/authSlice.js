@@ -5,6 +5,9 @@ let getErrorMessage = (error) => {
   if (error.response?.data?.message) {
     return error.response.data.message
   }
+  if (error.response?.data?.detail) {
+    return error.response.data.detail
+  }
   if (error.response?.status === 429) {
     return 'Too many requests. Please wait a few moments and try again.'
   }

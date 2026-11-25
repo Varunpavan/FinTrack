@@ -73,7 +73,8 @@ function Transactions() {
   }
 
   let handleEditClick = (item) => {
-    setEditingId(item._id)
+    let itemId = item._id || item.id
+    setEditingId(itemId)
     setForm({
       type: item.type,
       title: item.title,
@@ -91,8 +92,9 @@ function Transactions() {
       return
     }
 
+    let itemId = item._id || item.id
     try {
-      await dispatch(removeTransactionById(item._id)).unwrap()
+      await dispatch(removeTransactionById(itemId)).unwrap()
       dispatch(fetchTransactions({ ...filters, limit: 10 }))
       setMessage('Transaction deleted.')
     } catch (err) {
@@ -229,7 +231,7 @@ function Transactions() {
 
               {!loading && transactions.length > 0 &&
                 transactions.map((item) => (
-                  <tr key={item._id} className="hover:bg-hairsoft/40 transition-colors">
+                  <tr key={item._id || item.id} className="hover:bg-hairsoft/40 transition-colors">
                     <td className="px-5 py-3.5 text-bone">{item.title}</td>
                     <td className="px-5 py-3.5 capitalize text-muted">{item.type}</td>
                     <td className="px-5 py-3.5 text-muted">{item.category}</td>

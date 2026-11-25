@@ -149,7 +149,7 @@ function Reports() {
               <div className="mt-4 max-h-72 overflow-auto divide-y divide-hairsoft">
                 {report.transactions && report.transactions.length > 0 ? (
                   report.transactions.map((item) => (
-                    <div key={item._id} className="py-3 first:pt-0">
+                    <div key={item._id || item.id} className="py-3 first:pt-0">
                       <div className="flex justify-between">
                         <p className="text-sm text-bone">{item.title}</p>
                         <p className={`tnum text-sm font-medium ${item.type === 'income' ? 'text-jade' : 'text-wine'}`}>
