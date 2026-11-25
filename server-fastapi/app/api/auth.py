@@ -190,22 +190,28 @@ async def update_profile(
     if not clean_name or not clean_email:
         raise HTTPException(status_code=400, detail="Name and email are required")
 
-    # If changing email, ensure it's not already taken
-    if clean_email != current_user.email:
-        existing = await db.execute(select(User).where(User.email == clean_email))
+    # Fetch live attached user record from the database session
+    result = await db.execute(select(User).where(User.id == current_user.id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # If changing email, ensure it's not already taken by another account
+    if clean_email != user.email:
+        existing = await db.execute(select(User).where(User.email == clean_email, User.id != user.id))
         if existing.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="An account with this email already exists")
-        current_user.email = clean_email
+        user.email = clean_email
 
-    current_user.name = clean_name
+    user.name = clean_name
     await db.commit()
-    await db.refresh(current_user)
-    invalidate_user_cache(current_user.id)
+    await db.refresh(user)
+    invalidate_user_cache(user.id)
 
     return {
         "success": True,
         "message": "Profile updated",
-        "user": UserResponse.from_model(current_user)
+        "user": UserResponse.from_model(user)
     }
 
 
@@ -221,11 +227,18 @@ async def change_password(
     if len(payload.newPassword) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
 
-    if not verify_password(payload.currentPassword, current_user.hashed_password):
+    # Fetch live attached user record from the database session
+    result = await db.execute(select(User).where(User.id == current_user.id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not verify_password(payload.currentPassword, user.hashed_password):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
 
-    current_user.hashed_password = hash_password(payload.newPassword)
+    user.hashed_password = hash_password(payload.newPassword)
     await db.commit()
+    invalidate_user_cache(user.id)
 
     return GenericResponse(success=True, message="Password updated successfully")
 
@@ -291,9 +304,12 @@ async def delete_account(
     clear_ai_cache(user_id)
     invalidate_all_user_caches(user_id)
 
-    # PostgreSQL CASCADE handles deleting transactions and budgets automatically
-    await db.delete(current_user)
-    await db.commit()
+    # Fetch live attached user record to delete
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user:
+        await db.delete(user)
+        await db.commit()
 
     clear_auth_cookies(response)
     return GenericResponse(success=True, message="Account and all associated records deleted permanently")
